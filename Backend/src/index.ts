@@ -1,42 +1,69 @@
+import http from "http";
+import { WebSocketServer, WebSocket } from "ws";
 
-import { WebSocket, WebSocketServer } from "ws";
+// ✅ Use Render port
+const port = process.env.PORT || 8080;
 
-const ws = new WebSocketServer({ port: 8080 });
+// User type
 interface User {
-    socket: WebSocket,
-    room: string
+  socket: WebSocket;
+  room: string;
 }
 
+// Store all users
 let allsocket: User[] = [];
 
+// ✅ HTTP server (REQUIRED for Render)
+const server = http.createServer();
 
+// ✅ Attach WebSocket to HTTP server
+const wss = new WebSocketServer({ server });
 
-ws.on("connection", (socket) => {
+wss.on("connection", (socket) => {
+  console.log("✅ New client connected");
 
-    socket.on("message", (message) => {
-        const parsedmessage = JSON.parse(message as unknown as string);
-        if (parsedmessage.type == "join") {
-            allsocket.push({
-                socket,
-                room: parsedmessage.payload.roomId
-            })
+  socket.on("message", (message) => {
+    try {
+      const parsed = JSON.parse(message.toString());
+
+      // JOIN ROOM
+      if (parsed.type === "join") {
+        allsocket.push({
+          socket,
+          room: parsed.payload.roomId,
+        });
+
+        console.log("User joined room:", parsed.payload.roomId);
+      }
+
+      // CHAT MESSAGE
+      if (parsed.type === "chat") {
+        const currentRoom = allsocket.find(
+          (x) => x.socket === socket
+        )?.room;
+
+        if (!currentRoom) return;
+
+        for (const user of allsocket) {
+          if (user.room === currentRoom) {
+            user.socket.send(parsed.payload.message);
+          }
         }
-        
-if(parsedmessage.type=="chat"){
-    const currentuserRoom =allsocket.find((x)=>x.socket==socket)?.room
-    for(let i=0;i<allsocket.length;i++){
-        if(allsocket[i].room==currentuserRoom){
-         allsocket[i].socket.send(parsedmessage.payload.message)
-        //  allsocket[i].socket.send(allsocket.length);
-        }
+      }
+    } catch (err) {
+      console.error("❌ Invalid message:", err);
     }
+  });
 
+  // ✅ Proper cleanup
+  socket.on("close", () => {
+    console.log("❌ Client disconnected");
 
-}
+    allsocket = allsocket.filter((x) => x.socket !== socket);
+  });
+});
 
-    })
-
-    socket.on("disconnect", () => {
-
-    })
-})
+// ✅ Start server
+server.listen(port, () => {
+  console.log(`🚀 Server running on port ${port}`);
+});
