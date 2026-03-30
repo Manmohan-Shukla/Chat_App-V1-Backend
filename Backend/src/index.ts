@@ -1,8 +1,8 @@
 import http from "http";
 import { WebSocketServer, WebSocket } from "ws";
 
-// ✅ Render provides PORT automatically
-const port = process.env.PORT || 8080;
+// ✅ Correct port handling
+const port = Number(process.env.PORT) || 8080;
 
 // User type
 interface User {
@@ -10,16 +10,16 @@ interface User {
   room: string;
 }
 
-// Store connected users
+// Store users
 let allsocket: User[] = [];
 
-// ✅ HTTP server (REQUIRED for Render detection)
+// ✅ Create HTTP server FIRST
 const server = http.createServer((req, res) => {
   res.writeHead(200, { "Content-Type": "text/plain" });
   res.end("WebSocket server is running 🚀");
 });
 
-// ✅ Attach WebSocket server to HTTP server
+// ✅ Attach WebSocket
 const wss = new WebSocketServer({ server });
 
 wss.on("connection", (socket) => {
@@ -29,17 +29,13 @@ wss.on("connection", (socket) => {
     try {
       const parsed = JSON.parse(message.toString());
 
-      // 🔹 JOIN ROOM
       if (parsed.type === "join") {
         allsocket.push({
           socket,
           room: parsed.payload.roomId,
         });
-
-        console.log("User joined room:", parsed.payload.roomId);
       }
 
-      // 🔹 CHAT MESSAGE
       if (parsed.type === "chat") {
         const currentRoom = allsocket.find(
           (x) => x.socket === socket
@@ -58,14 +54,13 @@ wss.on("connection", (socket) => {
     }
   });
 
-  // 🔹 Cleanup on disconnect
   socket.on("close", () => {
     console.log("❌ Client disconnected");
     allsocket = allsocket.filter((x) => x.socket !== socket);
   });
 });
 
-// ✅ IMPORTANT: bind to 0.0.0.0 for Render
+// ✅ Start server ONLY ONCE and AFTER declaration
 server.listen(port, "0.0.0.0", () => {
   console.log(`🚀 Server running on port ${port}`);
 });
